@@ -591,6 +591,7 @@ body {
         <div class="stat-item"><div class="stat-label">燕麥</div><div class="stat-val" id="hs-oat">$0</div></div>
         <div class="stat-item"><div class="stat-label">線上支付</div><div class="stat-val" id="hs-online">$0</div></div>
         <div class="stat-item"><div class="stat-label">實收現金</div><div class="stat-val" id="hs-actual">$0</div></div>
+        <div class="stat-item"><div class="stat-label">零錢包</div><div class="stat-val" id="hs-changebag">$0</div></div>
         <div class="stat-item"><div class="stat-label">差異合計</div><div class="stat-val" id="hs-diff">$0</div></div>
         <div class="stat-item"><div class="stat-label">平帳率</div><div class="stat-val" id="hs-ok">0%</div></div>
       </div>
@@ -1195,6 +1196,7 @@ function renderHistory(){
   document.getElementById('hs-oat').innerHTML=fmtN(S('oat'))+pctOf(S('oat'));
   document.getElementById('hs-online').innerHTML=fmtN(S('onlinePay'))+pctOf(S('onlinePay'));
   document.getElementById('hs-actual').innerHTML=fmtN(S('actual'))+pctOf(S('actual'));
+  document.getElementById('hs-changebag').textContent=fmtN(S('changeBag'));
   document.getElementById('hs-diff').textContent=fmtN(S('diff'));
   document.getElementById('hs-ok').textContent=Math.round(recs.filter(r=>r.balanced).length/recs.length*100)+'%';
   statsEl.style.display='grid';
