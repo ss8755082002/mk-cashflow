@@ -187,8 +187,8 @@ body {
 .denom-result { font-size:12px; font-family:var(--mono); color:var(--text2); min-width:56px; text-align:right; }
 
 /* Cash summary */
-.cash-summary { background:var(--surface2); border-radius:var(--r); padding:14px 16px; margin-top:14px; }
-.cash-sum-row { display:flex; justify-content:space-between; align-items:center; font-size:14px; padding:6px 0; gap:8px; }
+.cash-summary { background:var(--surface2); border-radius:var(--r); padding:14px 16px; margin-top:14px; max-width:420px; }
+.cash-sum-row { display:flex; justify-content:space-between; align-items:center; font-size:14px; padding:4px 0; gap:8px; }
 .cash-sum-row.total-row  { font-weight:700; border-top:1px solid var(--border2); margin-top:8px; padding-top:10px; }
 .cash-sum-row.result-row { font-weight:700; color:var(--accent); font-size:15px; border-top:1px solid var(--border2); margin-top:5px; padding-top:10px; }
 .cash-num { font-family:var(--mono); font-weight:600; }
@@ -513,6 +513,7 @@ body {
             </div>
           </div>
           <input type="hidden" id="m-actual" value="">
+          <input type="hidden" id="m-change-bag" value="">
         </div>
       </div>
 
@@ -936,6 +937,7 @@ function calcCash(){
   const inp=document.querySelector(`.weekly-inp[data-date="${todayKey}"]`);
   if(inp&&cashTotal>0){ inp.value=change>=0?change:0; recalcWeeklyTotal(); }
   document.getElementById('m-actual').value=cashTotal>0?cashTotal:'';
+  document.getElementById('m-change-bag').value=cashTotal>0?(change>=0?change:0):'';
   calc();
 }
 
@@ -993,10 +995,12 @@ function calc(){
     }
     setStep(5);
     document.getElementById('btn-save').style.display='inline-flex';
+    const changeBagVal=parseFloat(document.getElementById('m-change-bag').value)||0;
     pendingSave={
       date:new Date().toLocaleDateString('zh-TW'),
       total:s.total,uber:s.uber,oat,
-      offline:s.offline,onlinePay:s.onlinePay,should,actual:netActual,petty:pettyVal,diff,balanced:ok,
+      offline:s.offline,onlinePay:s.onlinePay,should,actual:netActual,petty:pettyVal,
+      changeBag:changeBagVal,diff,balanced:ok,
       savedAt:new Date().toISOString()
     };
   } else {
@@ -1077,7 +1081,11 @@ function renderTx(){
   else if(filter==='flag')     visible=rows.filter(r=>pinkSet.has(r.id)||dupSet.has(r.id));
   else if(filter==='failed')   visible=rows.filter(r=>unconfSet.has(r.id));
   else if(filter==='cancelled')visible=rows.filter(r=>cancelSet.has(r.id));
-  if(q) visible=visible.filter(r=>String(r.seq).includes(q)||String(r.id).includes(q));
+  if(q) visible=visible.filter(r=>{
+    const seq=String(r.seq), id=String(r.id);
+    if(r.platform==='UberEats') return seq.endsWith(q)||id.endsWith(q);
+    return seq===q||id===q;
+  });
   document.getElementById('tx-meta').textContent=`顯示 ${visible.length} / ${rows.length} 筆`;
   const txBadge={
     '現金結帳':'<span class="badge b-green">現金</span>',
@@ -1190,23 +1198,26 @@ function renderHistory(){
   document.getElementById('hs-diff').textContent=fmtN(S('diff'));
   document.getElementById('hs-ok').textContent=Math.round(recs.filter(r=>r.balanced).length/recs.length*100)+'%';
   statsEl.style.display='grid';
+  const pct=(v,base)=>base>0?`<div style="font-size:10px;color:var(--text3)">${Math.round(v/base*100)}%</div>`:'';
   el.innerHTML=`<div class="tw"><table class="dt">
     <thead><tr>
       <th>日期</th><th class="r">系統營收</th>
       <th class="r">UBER</th><th class="r">燕麥</th>
-      <th class="r">線上支付</th><th class="r">實收現金</th>
+      <th class="r">線上支付</th><th class="r">實收現金<div style="font-size:9px;font-weight:400;color:var(--text3)">(零錢包)</div></th>
       <th class="r">差異</th><th>狀態</th>
     </tr></thead>
-    <tbody>${recs.map(r=>`<tr>
+    <tbody>${recs.map(r=>{
+      const base=r.total||0;
+      return `<tr>
       <td class="mono" style="white-space:nowrap">${r.date}</td>
       <td class="r amt">${fmt(r.total)}</td>
-      <td class="r amt">${fmt(r.uber||0)}</td>
-      <td class="r amt">${fmt(r.oat||0)}</td>
-      <td class="r amt">${fmt(r.onlinePay||0)}</td>
-      <td class="r amt">${fmt(r.actual)}</td>
+      <td class="r amt">${fmt(r.uber||0)}${pct(r.uber||0,base)}</td>
+      <td class="r amt">${fmt(r.oat||0)}${pct(r.oat||0,base)}</td>
+      <td class="r amt">${fmt(r.onlinePay||0)}${pct(r.onlinePay||0,base)}</td>
+      <td class="r amt">${fmt(r.actual)}<div style="font-size:11px;color:var(--accent-m);font-family:var(--mono)">${r.changeBag!=null?fmtN(r.changeBag):'—'}</div></td>
       <td class="r amt ${r.balanced?'':'neg'}">${r.balanced?'—':fmt(r.diff)}</td>
       <td>${r.balanced?'<span class="badge b-green">平帳</span>':'<span class="badge b-danger">差異</span>'}</td>
-    </tr>`).join('')}</tbody>
+    </tr>`;}).join('')}</tbody>
   </table></div>`;
 }
 
