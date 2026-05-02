@@ -1203,7 +1203,7 @@ function renderHistory(){
     <thead><tr>
       <th>日期</th><th class="r">系統營收</th>
       <th class="r">UBER</th><th class="r">燕麥</th>
-      <th class="r">線上支付</th><th class="r">實收現金<div style="font-size:9px;font-weight:400;color:var(--text3)">(零錢包)</div></th>
+      <th class="r">線上支付</th><th class="r">實收現金</th><th class="r">零錢包</th>
       <th class="r">差異</th><th>狀態</th>
     </tr></thead>
     <tbody>${recs.map(r=>{
@@ -1214,7 +1214,8 @@ function renderHistory(){
       <td class="r amt">${fmt(r.uber||0)}${pct(r.uber||0,base)}</td>
       <td class="r amt">${fmt(r.oat||0)}${pct(r.oat||0,base)}</td>
       <td class="r amt">${fmt(r.onlinePay||0)}${pct(r.onlinePay||0,base)}</td>
-      <td class="r amt">${fmt(r.actual)}<div style="font-size:11px;color:var(--accent-m);font-family:var(--mono)">${r.changeBag!=null?fmtN(r.changeBag):'—'}</div></td>
+      <td class="r amt">${fmt(r.actual)}${pct(r.actual||0,base)}</td>
+      <td class="r amt" style="color:var(--accent-m)">${r.changeBag!=null?fmtN(r.changeBag):'—'}</td>
       <td class="r amt ${r.balanced?'':'neg'}">${r.balanced?'—':fmt(r.diff)}</td>
       <td>${r.balanced?'<span class="badge b-green">平帳</span>':'<span class="badge b-danger">差異</span>'}</td>
     </tr>`;}).join('')}</tbody>
