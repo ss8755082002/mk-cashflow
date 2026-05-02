@@ -707,13 +707,16 @@ const DENOMS = [
 ];
 
 // ══ Init ══
+const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbywC83Z1WK-pvyM05hfh20wsNych1GqKKbvjtEch0sV4bPP7YylrGHsGNVyez_p9pIa5A/exec';
 (function(){
   const now = new Date();
   document.getElementById('page-date').textContent =
     now.toLocaleDateString('zh-TW',{year:'numeric',month:'long',day:'numeric',weekday:'short'});
   renderWeeklyGrid();
-  const saved = localStorage.getItem('mk_gas_url');
-  if(saved) document.getElementById('gas-url-inp').value = saved;
+  if(!localStorage.getItem('mk_gas_url')){
+    localStorage.setItem('mk_gas_url', DEFAULT_GAS_URL);
+  }
+  document.getElementById('gas-url-inp').value = localStorage.getItem('mk_gas_url');
 })();
 
 // ══ Toast ══
