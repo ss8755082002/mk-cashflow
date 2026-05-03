@@ -309,6 +309,19 @@ body {
 .mt12{margin-top:12px} .mt16{margin-top:16px} .mb16{margin-bottom:16px}
 .divider{height:1px;background:var(--border);margin:10px 0}
 
+/* ── Combo Search ── */
+.combo-tol-row { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text2); }
+.combo-section-hd { font-size:11px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--text2); padding:6px 0 6px; border-bottom:1px solid var(--border); margin-bottom:8px; }
+.combo-item { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:var(--r); background:var(--surface2); margin-bottom:6px; }
+.combo-item.exact { background:var(--accent-l); border:1px solid var(--accent-m); }
+.combo-item.close { background:var(--warn-l); border:1px solid #e8c560; }
+.combo-tags { flex:1; display:flex; flex-wrap:wrap; gap:4px; }
+.combo-tag { display:inline-flex; align-items:center; gap:3px; background:var(--surface); border:1px solid var(--border2); border-radius:4px; padding:2px 7px; font-size:11px; font-family:var(--mono); white-space:nowrap; }
+.combo-sum { font-family:var(--mono); font-weight:700; font-size:14px; white-space:nowrap; min-width:64px; text-align:right; }
+.combo-delta { font-size:10px; color:var(--text3); white-space:nowrap; text-align:right; }
+.combo-empty { font-size:13px; color:var(--text3); text-align:center; padding:20px 16px; line-height:1.8; }
+.combo-more { font-size:11px; color:var(--text3); text-align:center; padding:4px 0 8px; }
+
 /* ── 支付拆解 + 手動調整 並排 ── */
 .split-row { display:flex; gap:12px; align-items:flex-start; margin-bottom:14px; }
 .split-left  { flex:2; min-width:0; }
@@ -1004,6 +1017,10 @@ function calc(){
       changeBag:changeBagVal,diff,balanced:ok,
       savedAt:new Date().toISOString()
     };
+    if(diff<0){
+      const tol=parseFloat(document.getElementById('combo-tol')?.value)||10;
+      resultHtml+=buildComboSection(diff,tol);
+    }
   } else {
     resultHtml=`<div class="sec mb16">
       <div class="sec-hdr"><div class="sec-title">應收現金（預估）</div></div>
@@ -1297,6 +1314,89 @@ function clearAllData(){
   localStorage.removeItem('mk_weekly');
   showToast('✅ 本機資料已清除');
   renderHistory(); renderWeeklyGrid();
+}
+
+// ══ Combo Search ══
+function getCashOrders(){
+  return rows.filter(r=>
+    !r.cancelled && r.confirmed && r.amount>0 &&
+    (r.txType==='現金結帳'||r.txType==='櫃檯結帳')
+  );
+}
+
+function findDiffCombinations(absTarget, tolerance){
+  const cashOrders=getCashOrders();
+  const results=[];
+  function search(start,current,remaining){
+    const absRem=Math.abs(remaining);
+    if(absRem<=tolerance){ results.push({orders:[...current],netDiff:remaining}); return; }
+    if(current.length>=3||remaining<-tolerance) return;
+    for(let i=start;i<cashOrders.length;i++){
+      const amt=cashOrders[i].amount;
+      if(amt<=remaining+tolerance){
+        current.push(cashOrders[i]);
+        search(i+1,current,remaining-amt);
+        current.pop();
+      }
+    }
+  }
+  search(0,[],absTarget);
+  results.sort((a,b)=>Math.abs(a.netDiff)-Math.abs(b.netDiff)||a.orders.length-b.orders.length);
+  return {cashOrders,results};
+}
+
+function renderComboResults(diff,tolerance){
+  const absTarget=Math.abs(diff);
+  const {cashOrders,results}=findDiffCombinations(absTarget,tolerance);
+  if(!cashOrders.length) return `<div class="combo-empty">無現金訂單可供搜尋</div>`;
+  if(!results.length) return `<div class="combo-empty">找不到符合的組合（容忍誤差 ±$${tolerance}）<br><span style="font-size:11px;color:var(--text3)">差額可能由多種錯誤疊加造成，無法從單筆或組合還原</span></div>`;
+  const byCount={};
+  results.forEach(r=>{const k=r.orders.length;if(!byCount[k])byCount[k]=[];byCount[k].push(r);});
+  const labels={1:'單筆符合',2:'兩筆組合',3:'三筆組合'};
+  let html='';
+  [1,2,3].forEach(k=>{
+    if(!byCount[k]) return;
+    const list=byCount[k];
+    html+=`<div class="combo-section-hd">${labels[k]}（找到 ${list.length} 個可能）</div>`;
+    list.slice(0,6).forEach(r=>{
+      const isExact=Math.abs(r.netDiff)<1;
+      const sum=r.orders.reduce((s,o)=>s+o.amount,0);
+      const tags=r.orders.map(o=>`<span class="combo-tag">#${o.seq||o.id} <b style="color:var(--accent-m)">${fmt(o.amount)}</b></span>`).join('');
+      const deltaLabel=isExact?'完全符合':r.netDiff>0?`剩餘 +$${Math.round(r.netDiff)}`:`差 −$${Math.round(Math.abs(r.netDiff))}`;
+      html+=`<div class="combo-item ${isExact?'exact':'close'}">
+        <div class="combo-tags">${tags}</div>
+        <div><div class="combo-sum">${fmt(sum)}</div><div class="combo-delta">${deltaLabel}</div></div>
+      </div>`;
+    });
+    if(list.length>6) html+=`<div class="combo-more">還有 ${list.length-6} 個可能未顯示</div>`;
+  });
+  return html;
+}
+
+function refreshCombo(diff){
+  const tol=parseFloat(document.getElementById('combo-tol')?.value)||10;
+  const el=document.getElementById('combo-results');
+  if(el) el.innerHTML=renderComboResults(diff,tol);
+}
+
+function buildComboSection(diff,tol){
+  const abs=Math.abs(diff);
+  return `<div class="sec mb16">
+    <div class="sec-hdr" style="flex-wrap:wrap;gap:10px">
+      <div>
+        <div class="sec-title">🔍 差額組合搜尋</div>
+        <div class="sec-sub">短收 ${fmt(abs)}，自動搜尋可能未收到的現金單組合</div>
+      </div>
+      <div class="combo-tol-row">
+        <span>容忍誤差</span>
+        <input type="number" class="small-inp" id="combo-tol" value="${tol}" min="0" max="200" style="width:64px" oninput="refreshCombo(${diff})">
+        <span>元</span>
+      </div>
+    </div>
+    <div class="sec-body">
+      <div id="combo-results">${renderComboResults(diff,tol)}</div>
+    </div>
+  </div>`;
 }
 
 // ══ Format ══
