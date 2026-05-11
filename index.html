@@ -325,10 +325,11 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);font-size:15
         <div><div class="sec-title">B · 手動調整</div><div class="sec-sub">有填才計入</div></div>
       </div>
       <div class="sec-body">
-        <!-- 來客數 -->
+        <!-- 來客數（必填）-->
         <div style="background:var(--info-l);border:1px solid #7fb3cc;border-radius:var(--r);padding:10px 12px;margin-bottom:12px;">
-          <div style="font-size:10px;font-weight:700;color:var(--info);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">👥 來客數</div>
+          <div style="font-size:10px;font-weight:700;color:var(--info);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">👥 來客數 <span style="color:var(--danger)">*</span></div>
           <input type="number" inputmode="decimal" class="inp" id="m-guests" placeholder="0" min="0" style="background:transparent;border-color:#7fb3cc;" oninput="calc()">
+          <div id="guest-req-warn" style="display:none;font-size:11px;color:var(--danger);margin-top:5px;font-weight:600">⚠️ 結帳前請填入來客數</div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
           <div class="inp-group"><label>➕ 預訂今日付款</label><input type="number" inputmode="decimal" class="inp" id="m-preorder-in" placeholder="0" min="0" oninput="calc()"></div>
@@ -503,7 +504,7 @@ function showPage(id,el){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   document.getElementById('page-'+id).classList.add('on');
   el.classList.add('on');
-  if(id==='history') renderHistory();
+  if(id==='history'){renderHistory();fetchSheetHistory();}
 }
 
 // ── File ──
@@ -771,12 +772,22 @@ function calc(){
       savedAt:new Date().toISOString()
     };
 
+    // 來客數必填
+    const guestWarnEl=document.getElementById('guest-req-warn');
+    const gInp=document.getElementById('m-guests');
+    if(!guests){
+      if(guestWarnEl) guestWarnEl.style.display='block';
+      if(gInp) gInp.style.borderColor='var(--danger)';
+    } else {
+      if(guestWarnEl) guestWarnEl.style.display='none';
+      if(gInp) gInp.style.borderColor='';
+    }
     // 重複日期警告
     const dupRecs=JSON.parse(localStorage.getItem('mk_cashflow')||'[]');
     const isDup=dupRecs.some(r=>r.date===pendingSave.date);
     const dupWarnEl=document.getElementById('dup-warn');
     if(dupWarnEl) dupWarnEl.style.display=isDup?'block':'none';
-    document.getElementById('btn-save').style.display=isDup?'none':'inline-flex';
+    document.getElementById('btn-save').style.display=(guests>0&&!isDup)?'inline-flex':'none';
 
     // Combo (只顯示短收)
     if(diff<0){
@@ -941,6 +952,31 @@ async function syncToSheets(record){
   }catch(e){badge.textContent='⚠️ 未同步';badge.className='sync-badge err';return false;}
 }
 
+// ── Fetch History from Sheets ──
+async function fetchSheetHistory(){
+  const badge=document.getElementById('sync-badge');
+  badge.textContent='⬇️';badge.className='sync-badge';
+  try{
+    const res=await fetch(GAS_URL,{method:'GET',redirect:'follow'});
+    const json=await res.json();
+    if(json.ok&&json.records&&json.records.length){
+      const local=JSON.parse(localStorage.getItem('mk_cashflow')||'[]');
+      const localMap={};local.forEach(r=>{localMap[r.date]=r;});
+      json.records.forEach(r=>{localMap[r.date]={...r};});
+      const merged=Object.values(localMap).sort((a,b)=>(b.savedAt||'').localeCompare(a.savedAt||''));
+      localStorage.setItem('mk_cashflow',JSON.stringify(merged.slice(0,90)));
+      renderHistory();
+      badge.textContent='☁️ 已同步';badge.className='sync-badge ok';
+    } else {
+      badge.textContent='';badge.className='sync-badge';
+    }
+    setTimeout(()=>{badge.textContent='';badge.className='sync-badge';},5000);
+  }catch(e){
+    badge.textContent='⚠️ 離線';badge.className='sync-badge err';
+    setTimeout(()=>{badge.textContent='';badge.className='sync-badge';},3000);
+  }
+}
+
 // ── Save ──
 async function saveRecord(){
   if(!pendingSave) return;
@@ -1022,7 +1058,8 @@ function renderHistory(){
   document.getElementById('hs-total').textContent=fmtN(totSum);
   document.getElementById('hs-guests').textContent=recs.reduce((a,r)=>a+(r.guests||0),0);
   document.getElementById('hs-uber').innerHTML=fmtN(S('uber'))+pctOf(S('uber'));
-  document.getElementById('hs-oat').innerHTML=fmtN(S('oat'))+pctOf(S('oat'));
+  const oatStatTotal=recs.reduce((a,r)=>a+(r.oat||0)+(r.oatOffline||0),0);
+  document.getElementById('hs-oat').innerHTML=fmtN(oatStatTotal)+pctOf(oatStatTotal);
   document.getElementById('hs-online').innerHTML=fmtN(S('onlinePay'))+pctOf(S('onlinePay'));
   document.getElementById('hs-actual').innerHTML=fmtN(S('actual'))+pctOf(S('actual'));
   document.getElementById('hs-changebag').textContent=fmtN(S('changeBag'));
@@ -1040,7 +1077,7 @@ function renderHistory(){
       <td class="r">${r.guests||'—'}</td>
       <td class="r amt">${fmt(r.total)}</td>
       <td class="r amt">${fmt(r.uber||0)}${pct(r.uber||0,base)}</td>
-      <td class="r amt">${fmt(r.oat||0)}${pct(r.oat||0,base)}</td>
+      <td class="r amt">${fmt((r.oat||0)+(r.oatOffline||0))}${pct((r.oat||0)+(r.oatOffline||0),base)}</td>
       <td class="r amt">${fmt(r.onlinePay||0)}${pct(r.onlinePay||0,base)}</td>
       <td class="r amt">${fmt(r.actual)}</td>
       <td class="r amt" style="color:var(--accent-m)">${r.changeBag!=null?fmtN(r.changeBag):'—'}</td>
@@ -1118,7 +1155,9 @@ function saveEdit(){
     balanced:document.getElementById('e-balanced').checked,
   };
   localStorage.setItem('mk_cashflow',JSON.stringify(recs));
+  const updated={...recs[editIdx],_action:'update'};
   closeEditModal();renderHistory();showToast('✅ 紀錄已更新');
+  syncToSheets(updated);
 }
 
 // ── Delete Modal ──
