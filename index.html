@@ -590,18 +590,20 @@ function buildSummary(){
   const sum=fn=>active.filter(fn).reduce((s,r)=>s+r.amount,0);
   const total=sum(()=>true),uber=sum(r=>r.platform==='UberEats');
   const isOnline=r=>r.txType==='LINE Pay'||r.txType==='Apple Pay'||r.txType==='信用卡'||r.txType==='Google Pay';
-  const onlinePay=sum(isOnline);
-  const counterPay=sum(r=>r.platform==='櫃檯點餐');
+  const isCounter=r=>r.platform==='櫃檯點餐';
+  const onlinePay=sum(r=>!isCounter(r)&&isOnline(r));
+  const counterPay=sum(r=>isCounter(r));
   const kuaiTotal=sum(r=>r.platform==='快一點');
+  const kuaiOnlinePay=sum(r=>r.platform==='快一點'&&isOnline(r));
   const offline=total-onlinePay-uber;
   const discountOrders=active.filter(r=>r.amount<0);
   const hasDiscount=active.filter(r=>r.discount>0);
   const dups=rows.filter(r=>r.isDup);
   const unconfirmed=rows.filter(r=>!r.cancelled&&!r.confirmed);
   const cancelledRows=rows.filter(r=>r.cancelled);
-  summary={total,uber,onlinePay,offline,counterPay,kuaiTotal,kuaiOffline:kuaiTotal-onlinePay,
-    lpAmt:sum(r=>r.txType==='LINE Pay'),apAmt:sum(r=>r.txType==='Apple Pay'),
-    crAmt:sum(r=>r.txType==='信用卡'),gpAmt:sum(r=>r.txType==='Google Pay'),
+  summary={total,uber,onlinePay,offline,counterPay,kuaiTotal,kuaiOnlinePay,kuaiOffline:kuaiTotal-kuaiOnlinePay,
+    lpAmt:sum(r=>!isCounter(r)&&r.txType==='LINE Pay'),apAmt:sum(r=>!isCounter(r)&&r.txType==='Apple Pay'),
+    crAmt:sum(r=>!isCounter(r)&&r.txType==='信用卡'),gpAmt:sum(r=>!isCounter(r)&&r.txType==='Google Pay'),
     discountOrders,hasDiscount,dups,unconfirmed,cancelledRows,
     totalOrders:active.length,uberCount:active.filter(r=>r.platform==='UberEats').length,
     discountCount:discountOrders.length+hasDiscount.length,
@@ -638,7 +640,7 @@ function renderPayList(){
   }
   h+=`<div class="pay-row result"><span>✅ 線下收款</span><span class="pay-amt pos">${fmt(s.offline)}</span></div>`;
   h+=`<div class="pay-row sub-item"><span>🏪 櫃台</span><span class="pay-amt" style="color:var(--accent-m)">${fmt(s.counterPay)}</span></div>`;
-  h+=`<div class="pay-row sub-item"><span>📱 快一點線下</span><span class="pay-amt" style="color:var(--accent-m)">${fmt(s.kuaiOffline)}</span></div>`;
+  h+=`<div class="pay-row sub-item"><span>📱 快一點線下 <span class="pay-hint">（${fmt(s.kuaiTotal)} − 快一點線上 ${fmt(s.kuaiOnlinePay)}）</span></span><span class="pay-amt" style="color:var(--accent-m)">${fmt(s.kuaiOffline)}</span></div>`;
   document.getElementById('pay-list').innerHTML=h;
 }
 
